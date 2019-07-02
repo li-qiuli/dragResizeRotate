@@ -1,1 +1,5 @@
-import './demo';
+
+import './style'
+import './js/test'
+
+
