@@ -1,5 +1,5 @@
 
 import './style'
-import './js/test'
+import './js/test.js'
 
 
