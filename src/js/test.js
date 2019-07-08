@@ -1,6 +1,3 @@
-/**
- * touch时通过 _preventMouse 禁止mouse事件
- */
 import {
     observable,
     autorun
@@ -15,7 +12,7 @@ const {
 import $ from 'jquery'
 
 let c = navigator.userAgent
-
+console.log(9876554,document.getElementsByClassName('image')[0].offsetTop)
 // * [${图形},${图形的父级元素},图行className,${旋转元素},旋转元素className]
 
 var EpubDRR = function (DOM) {
@@ -73,6 +70,7 @@ EpubDRR.prototype = {
             if (this._preventMouse) return;
             let center = that.centerfun()
             event.stopPropagation();
+            event.preventDefault();
             let startPointT = [event.clientX, event.clientY]
             DOM.mousemove(function (ev) {
                 ev.stopPropagation();
@@ -87,7 +85,16 @@ EpubDRR.prototype = {
                     },
                 };
                 const result = move(opt1)
-                that._numberValue.center = result.center
+                // if(result.center[0]-center[0]/2<0){
+                //     result.center[0]=center[0]/2
+                    
+                // }else if(result.center[1]-center[1]/2<0){
+                //     result.center[1]=center[1]/2
+                // }else{
+                     that._numberValue.center = result.center
+                // }
+                console.log('mouseDrag',result)
+               
             })
         })
         DOM.mouseup(function (ev) {
@@ -127,6 +134,7 @@ EpubDRR.prototype = {
                             },
                         };
                         const result = move(opt1)
+                        console.log('touchDrag',result)
                         that._numberValue.center = result.center
                     }
                 })
@@ -150,6 +158,7 @@ EpubDRR.prototype = {
             $(arr[i].name).mousedown(function (event) {
                 if (this._preventMouse) return;
                 event.stopPropagation();
+                event.preventDefault()
                 let startPointT = [event.clientX, event.clientY]
                 let center = that.centerfun()
                 const startPos = {
@@ -159,6 +168,7 @@ EpubDRR.prototype = {
                 }
                 DOM.mousemove(function (eve) {
                     eve.stopPropagation();
+                    eve.preventDefault()
                     let movePoint = [eve.clientX, eve.clientY]
                     const opt3 = {
                         startPos,
@@ -170,6 +180,7 @@ EpubDRR.prototype = {
                         },
                     };
                     const result = resize(opt3) //====>center   size
+                    console.log('mouseResize',result)
                     Object.assign(that._numberValue, result)
                     that._initSize = result.size //initSize
                 })
@@ -219,6 +230,7 @@ EpubDRR.prototype = {
                         };
 
                         const result = resize(opt3) //====>center   size
+                        console.log('touchResize',result)
                         that._numberValue.center = result.center
                         that._numberValue.size = result.size
                         that._initSize = result.size
@@ -259,6 +271,8 @@ EpubDRR.prototype = {
                     },
                 };
                 let result = rotate(opt2)
+                console.log('mouseRotate',result)
+               
                 that._numberValue.rotate = result.rotate
                 that._commonRotate = result.rotate
             })
@@ -299,6 +313,8 @@ EpubDRR.prototype = {
                         },
                     };
                     const result = rotate(opt2)
+                    console.log('touchRotate',result)
+                 
                     that._numberValue.rotate = result.rotate
                     that._commonRotate = result.rotate
 
@@ -335,12 +351,18 @@ EpubDRR.prototype = {
         }
         return arr
     },
-    mouseStartPoint:function(ev){
-        if (this._preventMouse) return;
-        event.stopPropagation();
-        let mouseStartPoint = [event.clientX, event.clientY]
-        return mouseStartPoint
-    }
+    // mouseStartPoint:function(ev){
+    //     if (this._preventMouse) return;
+    //     event.stopPropagation();
+    //     let mouseStartPoint = [event.clientX, event.clientY]
+    //     return mouseStartPoint
+    // },
+    // mouseMovePoint:function(ev){
+    //     if (this._preventMouse) return;
+    //     event.stopPropagation();
+    //     let mouseMovePoint = [event.clientX, event.clientY]
+    //     return mouseMovePoint
+    // }
     
 }
 module.exports = EpubDRR;
