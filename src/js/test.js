@@ -1,3 +1,6 @@
+/**
+ * touch时通过 _preventMouse 禁止mouse事件
+ */
 import {
     observable,
     autorun
@@ -18,6 +21,9 @@ let c = navigator.userAgent
 var EpubDRR = function (DOM) {
     this.c = `.${DOM}`
     this.el = $(this.c);
+
+
+    this._preventMouse = false
 
     this.imgDOM = DOM
     let that = this
@@ -56,224 +62,249 @@ var EpubDRR = function (DOM) {
 EpubDRR.prototype = {
     constructor: EpubDRR,
     epubDrag: function (value, op) {
+        this.mouseDrag(value, op)
+        this.touchDrag(value, op)
+    },
+    mouseDrag: function (value, op) {
         let DOM = value
         let option = op
         let that = this;
-
-        if (/Macintosh/.test(c)) {
-            DOM.mousedown(function (event) {
-                let center = that.centerfun()
-                event.stopPropagation();
-                let startPointT = [event.clientX, event.clientY]
-                DOM.mousemove(function (ev) {
-
-                    ev.stopPropagation();
-                    ev.preventDefault()
-                    const opt1 = {
-                        startPos: {
-                            center: center
-                        },
-                        opts: {
-                            startPoint: startPointT,
-                            movePoint: [ev.clientX, ev.clientY],
-                        },
-                    };
-                    const result = move(opt1)
-                    that._numberValue.center = result.center
-                })
-            })
-            DOM.mouseup(function (ev) {
+        DOM.mousedown(function (event) {
+            if (this._preventMouse) return;
+            let center = that.centerfun()
+            event.stopPropagation();
+            let startPointT = [event.clientX, event.clientY]
+            DOM.mousemove(function (ev) {
                 ev.stopPropagation();
-                DOM.unbind("mousemove")
+                ev.preventDefault()
+                const opt1 = {
+                    startPos: {
+                        center: center
+                    },
+                    opts: {
+                        startPoint: startPointT,
+                        movePoint: [ev.clientX, ev.clientY],
+                    },
+                };
+                const result = move(opt1)
+                that._numberValue.center = result.center
             })
-            DOM.mouseleave(function (ev) {
-                ev.stopPropagation();
-                DOM.unbind("mousemove")
-            })
-        } else {
-            let startPointT = []
-            let touchCenter = []
-            let that = this
-            DOM[0].addEventListener('touchstart', function (event) {
-                //开始点
-                event.stopPropagation();
-                touchCenter = that.centerfun()
-                startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+        })
+        DOM.mouseup(function (ev) {
+            ev.stopPropagation();
+            DOM.unbind("mousemove")
+        })
+        DOM.mouseleave(function (ev) {
+            ev.stopPropagation();
+            DOM.unbind("mousemove")
+        })
 
-                if (event.target.className == option) {
-                    DOM[0].addEventListener('touchmove', function (ev) {
-                        ev.stopPropagation();
-                        if (ev.target.className == option) {
-                            const opt1 = {
-                                startPos: {
-                                    center: touchCenter
-                                },
-                                opts: {
-                                    startPoint: startPointT,
-                                    movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
-                                },
-                            };
-                            const result = move(opt1)
-                            that._numberValue.center = result.center
-                        }
-                    })
-                }
-            })
-        }
     },
-    epubResize: function (dom, obj) {
-        let DOM = dom
+    touchDrag: function (value, op) {
+        let DOM = value
+        let option = op
+        let startPointT = []
+        let touchCenter = []
         let that = this
+        DOM[0].addEventListener('touchstart', function (event) {
+            this._preventMouse=true
+            //开始点
+            event.stopPropagation();
+            touchCenter = that.centerfun()
+            startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
 
-        let arr = []
-        arr = this.mergeArrObj(obj)
-        if (/Macintosh/.test(c)) {
-            for (let i = 0; i < arr.length; i++) {
-                $(arr[i].name).mousedown(function (event) {
-                    event.stopPropagation();
-                    let startPointT = [event.clientX, event.clientY]
-                    let center = that.centerfun()
-                    const startPos = {
-                        center: center,
-                        rotate: that._commonRotate,
-                        size: that._initSize //initSize
-                    }
-                    DOM.mousemove(function (eve) {
-                        eve.stopPropagation();
-                        let movePoint = [eve.clientX, eve.clientY]
-                        const opt3 = {
-                            startPos,
-                            opts: {
-                                startPoint: startPointT,
-                                movePoint: movePoint,
-                                mode: md.ratio,
-                                marker: arr[i].direction
+            if (event.target.className == option) {
+                DOM[0].addEventListener('touchmove', function (ev) {
+                    ev.stopPropagation();
+                    if (ev.target.className == option) {
+                        const opt1 = {
+                            startPos: {
+                                center: touchCenter
                             },
-                        };
-                        const result = resize(opt3) //====>center   size
-                        Object.assign(that._numberValue, result)
-                        that._initSize = result.size //initSize
-                    })
-                })
-            }
-            for (let i = 0; i < arr.length; i++) {
-                $(arr[i].name).mouseup(function (event) {
-                    DOM.unbind("mousemove")
-                })
-                DOM.mouseup(function (event) {
-                    event.stopPropagation();
-                    DOM.unbind("mousemove")
-                })
-                DOM.mouseleave(function (event) {
-                    event.stopPropagation();
-                    DOM.unbind("mousemove")
-                })
-            }
-        } else {
-            let touchCenter = []
-            let startPointT = []
-            for (let i = 0; i < arr.length; i++) {
-                $(arr[i].name)[0].addEventListener('touchstart', function (event) {
-                    event.preventDefault()
-                    event.stopPropagation();
-                    touchCenter = that.centerfun()
-                    let startPosT = {
-                        center: touchCenter,
-                        rotate: that._commonRotate,
-                        size: that._initSize //initSize
-                    }
-                    startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
-                    if (event.target.className == arr[i].classNames) {
-                        $(arr[i].name)[0].addEventListener('touchmove', function (ev) {
-                            const opt3 = {
-                                startPos: startPosT,
-                                opts: {
-                                    startPoint: startPointT,
-                                    movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
-                                    mode: md.ratio,
-                                    marker: arr[i].direction
-                                },
-                            };
-
-                            const result = resize(opt3) //====>center   size
-                            that._numberValue.center = result.center
-                            that._numberValue.size = result.size
-                            that._initSize = result.size
-                        })
-                    }
-                })
-            }
-        }
-    },
-    epubRotate: function (dom1, dom2, option) {
-        let DOM1 = dom1
-        let DOM2 = dom2
-        let options = option
-
-        let that = this
-        if (/Macintosh/.test(c)) {
-            DOM1.mousedown(function (event) {
-                event.stopPropagation();
-                let center = that.centerfun()
-
-                let startPos = {
-                    center: center,
-                    rotate: that._commonRotate
-                }
-                let startPointT = [event.clientX, event.clientY]
-                DOM2.mousemove(function (ev) {
-                    let movePoint = [ev.clientX, ev.clientY]
-                    ev.stopPropagation();
-                    const opt2 = {
-                        startPos,
-                        opts: {
-                            startPoint: startPointT,
-                            movePoint,
-                        },
-                    };
-                    let result = rotate(opt2)
-                    that._numberValue.rotate = result.rotate
-                    that._commonRotate = result.rotate
-                })
-            })
-            DOM1.mouseup(function (event) {
-                event.stopPropagation();
-                DOM2.unbind("mousemove")
-            })
-            that.el.mouseup(function (ev) {
-                ev.stopPropagation();
-                DOM2.unbind("mousemove")
-            })
-        } else {
-            DOM1[0].addEventListener('touchstart', function (event) {
-                event.stopPropagation();
-                let startPointT = []
-                let touchCenter = that.centerfun()
-
-                let startPosR = {
-                    center: touchCenter,
-                    rotate: that._commonRotate
-                }
-                startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
-
-                if (event.target.className == options) {
-                    DOM1[0].addEventListener('touchmove', function (ev) {
-                        const opt2 = {
-                            startPos: startPosR,
                             opts: {
                                 startPoint: startPointT,
                                 movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
                             },
                         };
-                        const result = rotate(opt2)
-                        that._numberValue.rotate = result.rotate
-                        that._commonRotate = result.rotate
+                        const result = move(opt1)
+                        that._numberValue.center = result.center
+                    }
+                })
+            }
+        })
 
+
+        
+    },
+
+    epubResize: function (dom, obj) {
+        let arr = []
+        arr = this.mergeArrObj(obj)
+        this.mouseResize(dom, arr)
+        this.touchResize(dom, arr)
+    },
+    mouseResize: function (dom, arr) {
+        let DOM = dom
+        let that = this
+        for (let i = 0; i < arr.length; i++) {
+            $(arr[i].name).mousedown(function (event) {
+                if (this._preventMouse) return;
+                event.stopPropagation();
+                let startPointT = [event.clientX, event.clientY]
+                let center = that.centerfun()
+                const startPos = {
+                    center: center,
+                    rotate: that._commonRotate,
+                    size: that._initSize //initSize
+                }
+                DOM.mousemove(function (eve) {
+                    eve.stopPropagation();
+                    let movePoint = [eve.clientX, eve.clientY]
+                    const opt3 = {
+                        startPos,
+                        opts: {
+                            startPoint: startPointT,
+                            movePoint: movePoint,
+                            mode: md.ratio,
+                            marker: arr[i].direction
+                        },
+                    };
+                    const result = resize(opt3) //====>center   size
+                    Object.assign(that._numberValue, result)
+                    that._initSize = result.size //initSize
+                })
+            })
+        }
+        for (let i = 0; i < arr.length; i++) {
+            $(arr[i].name).mouseup(function (event) {
+                DOM.unbind("mousemove")
+            })
+            DOM.mouseup(function (event) {
+                event.stopPropagation();
+                DOM.unbind("mousemove")
+            })
+            DOM.mouseleave(function (event) {
+                event.stopPropagation();
+                DOM.unbind("mousemove")
+            })
+        }
+    },
+    touchResize: function (dom, arr) {
+        let DOM = dom
+        let that = this
+        let touchCenter = []
+        let startPointT = []
+        for (let i = 0; i < arr.length; i++) {
+            $(arr[i].name)[0].addEventListener('touchstart', function (event) {
+                this._preventMouse = true
+                event.preventDefault()
+                event.stopPropagation();
+                touchCenter = that.centerfun()
+                let startPosT = {
+                    center: touchCenter,
+                    rotate: that._commonRotate,
+                    size: that._initSize //initSize
+                }
+                startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+                if (event.target.className == arr[i].classNames) {
+                    $(arr[i].name)[0].addEventListener('touchmove', function (ev) {
+                        const opt3 = {
+                            startPos: startPosT,
+                            opts: {
+                                startPoint: startPointT,
+                                movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
+                                mode: md.ratio,
+                                marker: arr[i].direction
+                            },
+                        };
+
+                        const result = resize(opt3) //====>center   size
+                        that._numberValue.center = result.center
+                        that._numberValue.size = result.size
+                        that._initSize = result.size
                     })
                 }
             })
         }
+       
+    },
+    epubRotate: function (dom1, dom2, option) {        
+        this.mouseRotate(dom1, dom2, option)
+        this.touchRotate(dom1, dom2, option)
 
+    },
+    mouseRotate:function(dom1, dom2, option){
+        let DOM1 = dom1;
+        let DOM2 = dom2;
+        let options = option;
+        let that = this
+        DOM1.mousedown(function (event) {
+            if (this._preventMouse) return;
+            event.stopPropagation();
+            let center = that.centerfun()
+
+            let startPos = {
+                center: center,
+                rotate: that._commonRotate
+            }
+            let startPointT = [event.clientX, event.clientY]
+            DOM2.mousemove(function (ev) {
+                let movePoint = [ev.clientX, ev.clientY]
+                ev.stopPropagation();
+                const opt2 = {
+                    startPos,
+                    opts: {
+                        startPoint: startPointT,
+                        movePoint,
+                    },
+                };
+                let result = rotate(opt2)
+                that._numberValue.rotate = result.rotate
+                that._commonRotate = result.rotate
+            })
+        })
+        DOM1.mouseup(function (event) {
+            event.stopPropagation();
+            DOM2.unbind("mousemove")
+        })
+        that.el.mouseup(function (ev) {
+            ev.stopPropagation();
+            DOM2.unbind("mousemove")
+        })
+    },
+    touchRotate:function(dom1, dom2, option){
+        let DOM1 = dom1
+        let DOM2 = dom2
+        let options = option
+        let that = this
+        DOM1[0].addEventListener('touchstart', function (event) {
+            this._preventMouse=true
+            event.stopPropagation();
+            let startPointT = []
+            let touchCenter = that.centerfun()
+
+            let startPosR = {
+                center: touchCenter,
+                rotate: that._commonRotate
+            }
+            startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+
+            if (event.target.className == options) {
+                DOM1[0].addEventListener('touchmove', function (ev) {
+                    const opt2 = {
+                        startPos: startPosR,
+                        opts: {
+                            startPoint: startPointT,
+                            movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
+                        },
+                    };
+                    const result = rotate(opt2)
+                    that._numberValue.rotate = result.rotate
+                    that._commonRotate = result.rotate
+
+                })
+            }
+        })
     },
     centerfun: function () {
         let d = document.getElementsByClassName(this.imgDOM)[0].style.transform.match(/translate\(.*?(\))/g)[1]
@@ -303,7 +334,14 @@ EpubDRR.prototype = {
             }
         }
         return arr
+    },
+    mouseStartPoint:function(ev){
+        if (this._preventMouse) return;
+        event.stopPropagation();
+        let mouseStartPoint = [event.clientX, event.clientY]
+        return mouseStartPoint
     }
+    
 }
 module.exports = EpubDRR;
 
