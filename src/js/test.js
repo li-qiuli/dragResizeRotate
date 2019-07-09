@@ -1,7 +1,10 @@
 import {
     observable,
-    autorun
+    autorun,
+
 } from "mobx";
+const mobx = require('mobx')
+const _ = require('lodash')
 const {
     modeChoice: md,
     markerChoice: mk,
@@ -11,20 +14,13 @@ const {
 } = require('drag-resize-rotate');
 import $ from 'jquery'
 
-let c = navigator.userAgent
-console.log(9876554,document.getElementsByClassName('image')[0].offsetTop)
 // * [${图形},${图形的父级元素},图行className,${旋转元素},旋转元素className]
 
 var EpubDRR = function (DOM) {
-    this.c = `.${DOM}`
-    this.el = $(this.c);
-
-
-    this._preventMouse = false
-
-    this.imgDOM = DOM
+    this.el = $(`.${DOM}`);
+    this._preventMouse = false //值为true时touch时不触发mouse事件
     let that = this
-    this._initCenter = this.centerfun()
+    this._initCenter = centerfun(DOM)
     this._initSize = [this.el.outerWidth(), this.el.outerHeight()]
     this._commonRotate = 0
 
@@ -64,92 +60,69 @@ EpubDRR.prototype = {
     },
     mouseDrag: function (value, op) {
         let DOM = value
-        let option = op
         let that = this;
-        DOM.mousedown(function (event) {
-            if (this._preventMouse) return;
-            let center = that.centerfun()
-            event.stopPropagation();
-            event.preventDefault();
+        DOM.mousedown((event) => {
+            if(this._preventMouse) return;
+            let center = JSON.parse(JSON.stringify(
+                mobx.toJS(that._numberValue.center)
+            ))
             let startPointT = [event.clientX, event.clientY]
-            DOM.mousemove(function (ev) {
-                ev.stopPropagation();
-                ev.preventDefault()
-                const opt1 = {
-                    startPos: {
-                        center: center
-                    },
-                    opts: {
-                        startPoint: startPointT,
-                        movePoint: [ev.clientX, ev.clientY],
-                    },
-                };
-                const result = move(opt1)
-                // if(result.center[0]-center[0]/2<0){
-                //     result.center[0]=center[0]/2
-                    
-                // }else if(result.center[1]-center[1]/2<0){
-                //     result.center[1]=center[1]/2
-                // }else{
-                     that._numberValue.center = result.center
-                // }
-                console.log('mouseDrag',result)
-               
-            })
-        })
-        DOM.mouseup(function (ev) {
-            ev.stopPropagation();
-            DOM.unbind("mousemove")
-        })
-        DOM.mouseleave(function (ev) {
-            ev.stopPropagation();
-            DOM.unbind("mousemove")
-        })
 
+            const move2 = (ev) => {
+                that.computedDrag(startPointT, center, ev)
+                return false
+            }
+            const end = () => {
+                $(window).unbind('mousemove')
+                $(window).unbind('mouseup')
+            }
+
+            $(window).mousemove(move2)
+            DOM.mouseup(end)
+            return false
+        })
+        return {
+            destroy: () => {
+                DOM.unbind('mousedown')
+            },
+        };
     },
     touchDrag: function (value, op) {
         let DOM = value
         let option = op
-        let startPointT = []
-        let touchCenter = []
         let that = this
         DOM[0].addEventListener('touchstart', function (event) {
-            this._preventMouse=true
+            this._preventMouse = true
+
             //开始点
-            event.stopPropagation();
-            touchCenter = that.centerfun()
-            startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+            let touchCenter = JSON.parse(JSON.stringify(
+                mobx.toJS(that._numberValue.center)
+            ))
+            let startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
 
             if (event.target.className == option) {
-                DOM[0].addEventListener('touchmove', function (ev) {
-                    ev.stopPropagation();
+                const move2 = (ev) => {
                     if (ev.target.className == option) {
-                        const opt1 = {
-                            startPos: {
-                                center: touchCenter
-                            },
-                            opts: {
-                                startPoint: startPointT,
-                                movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
-                            },
-                        };
-                        const result = move(opt1)
-                        console.log('touchDrag',result)
-                        that._numberValue.center = result.center
+                        that.computedDrag(startPointT, touchCenter, ev.changedTouches[0])
                     }
-                })
+                }
+                const end = () => {
+                    DOM[0].removeEventListener('touchmove', end)
+                }
+
+                DOM[0].addEventListener('touchmove', move2, false)
+                DOM[0].addEventListener('touchend', end, false)
             }
-        })
-
-
-        
+        }, false)
+        return {
+            destroy: () => DOM.removeEventListener('touchstart'),
+        }
     },
-
     epubResize: function (dom, obj) {
-        let arr = []
-        arr = this.mergeArrObj(obj)
+        let arr = _.merge(arrResize, obj)
         this.mouseResize(dom, arr)
         this.touchResize(dom, arr)
+
     },
     mouseResize: function (dom, arr) {
         let DOM = dom
@@ -157,146 +130,117 @@ EpubDRR.prototype = {
         for (let i = 0; i < arr.length; i++) {
             $(arr[i].name).mousedown(function (event) {
                 if (this._preventMouse) return;
-                event.stopPropagation();
-                event.preventDefault()
                 let startPointT = [event.clientX, event.clientY]
-                let center = that.centerfun()
+                let center = JSON.parse(JSON.stringify(
+                    mobx.toJS(that._numberValue.center)
+                ))
+
                 const startPos = {
                     center: center,
                     rotate: that._commonRotate,
                     size: that._initSize //initSize
                 }
-                DOM.mousemove(function (eve) {
-                    eve.stopPropagation();
-                    eve.preventDefault()
-                    let movePoint = [eve.clientX, eve.clientY]
-                    const opt3 = {
-                        startPos,
-                        opts: {
-                            startPoint: startPointT,
-                            movePoint: movePoint,
-                            mode: md.ratio,
-                            marker: arr[i].direction
-                        },
-                    };
-                    const result = resize(opt3) //====>center   size
-                    console.log('mouseResize',result)
-                    Object.assign(that._numberValue, result)
-                    that._initSize = result.size //initSize
-                })
+
+                const move1 = (eve) => {
+                    that.computeResize(startPos, startPointT, eve, arr[i].direction)
+                    return false
+                }
+                const end = () => {
+                    DOM.unbind('mousemove')
+                }
+                DOM.mousemove(move1)
+                DOM.mouseup(end)
+                return false
             })
         }
-        for (let i = 0; i < arr.length; i++) {
-            $(arr[i].name).mouseup(function (event) {
-                DOM.unbind("mousemove")
-            })
-            DOM.mouseup(function (event) {
-                event.stopPropagation();
-                DOM.unbind("mousemove")
-            })
-            DOM.mouseleave(function (event) {
-                event.stopPropagation();
-                DOM.unbind("mousemove")
-            })
+        return {
+            destroy: () => {
+                for (let i = 0; i < arr.length; i++) {
+                    $(arr[i].name).unbind('mousedown')
+                }
+            }
         }
     },
     touchResize: function (dom, arr) {
         let DOM = dom
         let that = this
-        let touchCenter = []
-        let startPointT = []
         for (let i = 0; i < arr.length; i++) {
             $(arr[i].name)[0].addEventListener('touchstart', function (event) {
                 this._preventMouse = true
-                event.preventDefault()
-                event.stopPropagation();
-                touchCenter = that.centerfun()
-                let startPosT = {
+
+                let touchCenter = JSON.parse(JSON.stringify(
+                    mobx.toJS(that._numberValue.center)
+                ))
+                let startPos = {
                     center: touchCenter,
                     rotate: that._commonRotate,
                     size: that._initSize //initSize
                 }
-                startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
+                let startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
                 if (event.target.className == arr[i].classNames) {
-                    $(arr[i].name)[0].addEventListener('touchmove', function (ev) {
-                        const opt3 = {
-                            startPos: startPosT,
-                            opts: {
-                                startPoint: startPointT,
-                                movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
-                                mode: md.ratio,
-                                marker: arr[i].direction
-                            },
-                        };
+                    const move1 = (ev) => {
+                        that.computeResize(startPos, startPointT, ev.changedTouches[0], arr[i].direction)
 
-                        const result = resize(opt3) //====>center   size
-                        console.log('touchResize',result)
-                        that._numberValue.center = result.center
-                        that._numberValue.size = result.size
-                        that._initSize = result.size
-                    })
+                    }
+                    const end = () => {
+                        $(arr[i].name)[0].removeEventListener('touchmove', move1)
+                    }
+                    $(arr[i].name)[0].addEventListener('touchmove', move1)
+                    $(arr[i].name)[0].addEventListener('touchend', end)
                 }
-            })
+            }, false)
         }
-       
     },
-    epubRotate: function (dom1, dom2, option) {        
+    epubRotate: function (dom1, dom2, option) {
         this.mouseRotate(dom1, dom2, option)
         this.touchRotate(dom1, dom2, option)
 
     },
-    mouseRotate:function(dom1, dom2, option){
+    mouseRotate: function (dom1, dom2, option) {
         let DOM1 = dom1;
         let DOM2 = dom2;
-        let options = option;
         let that = this
         DOM1.mousedown(function (event) {
             if (this._preventMouse) return;
-            event.stopPropagation();
-            let center = that.centerfun()
+            let center = JSON.parse(JSON.stringify(
+                mobx.toJS(that._numberValue.center)
+            ))
 
             let startPos = {
                 center: center,
                 rotate: that._commonRotate
             }
             let startPointT = [event.clientX, event.clientY]
-            DOM2.mousemove(function (ev) {
-                let movePoint = [ev.clientX, ev.clientY]
-                ev.stopPropagation();
-                const opt2 = {
-                    startPos,
-                    opts: {
-                        startPoint: startPointT,
-                        movePoint,
-                    },
-                };
-                let result = rotate(opt2)
-                console.log('mouseRotate',result)
-               
-                that._numberValue.rotate = result.rotate
-                that._commonRotate = result.rotate
-            })
+
+            const move1 = (ev) => {
+                that.computeRotate(startPos, startPointT, ev)
+                return false
+            }
+            const end = () => {
+                DOM2.unbind('mousemove')
+            }
+            DOM2.mousemove(move1)
+            DOM2.mouseup(end)
+            return false
         })
-        DOM1.mouseup(function (event) {
-            event.stopPropagation();
-            DOM2.unbind("mousemove")
-        })
-        that.el.mouseup(function (ev) {
-            ev.stopPropagation();
-            DOM2.unbind("mousemove")
-        })
+        return {
+            destroy: () => {
+                DOM1.unbind('mousedown')
+            }
+        }
     },
-    touchRotate:function(dom1, dom2, option){
+    touchRotate: function (dom1, dom2, option) {
         let DOM1 = dom1
         let DOM2 = dom2
         let options = option
         let that = this
         DOM1[0].addEventListener('touchstart', function (event) {
-            this._preventMouse=true
-            event.stopPropagation();
+            this._preventMouse = true
             let startPointT = []
-            let touchCenter = that.centerfun()
 
+            let touchCenter = JSON.parse(JSON.stringify(
+                mobx.toJS(that._numberValue.center)
+            ))
             let startPosR = {
                 center: touchCenter,
                 rotate: that._commonRotate
@@ -304,69 +248,88 @@ EpubDRR.prototype = {
             startPointT = [event.changedTouches[0].clientX, event.changedTouches[0].clientY]
 
             if (event.target.className == options) {
-                DOM1[0].addEventListener('touchmove', function (ev) {
-                    const opt2 = {
-                        startPos: startPosR,
-                        opts: {
-                            startPoint: startPointT,
-                            movePoint: [ev.changedTouches[0].clientX, ev.changedTouches[0].clientY],
-                        },
-                    };
-                    const result = rotate(opt2)
-                    console.log('touchRotate',result)
-                 
-                    that._numberValue.rotate = result.rotate
-                    that._commonRotate = result.rotate
-
-                })
-            }
-        })
-    },
-    centerfun: function () {
-        let d = document.getElementsByClassName(this.imgDOM)[0].style.transform.match(/translate\(.*?(\))/g)[1]
-        let c = d.match(/\d+(.\d+)?/g)
-        let centerX = parseFloat(c[0])
-        let centerY = parseFloat(c[1])
-        let center = [centerX, centerY]
-        return center
-    },
-    //合并数组对象
-    mergeArrObj: function (value2) {
-        let arrResize = [{
-            direction: mk.leftTop,
-        }, {
-            direction: mk.rightTop,
-        }, {
-            direction: mk.leftBottom,
-        }, {
-            direction: mk.rightBottom,
-        }]
-        let arr = []
-        for (let i = 0; i < arrResize.length; i++) {
-            for (let j = 0; j < value2.length; j++) {
-                if (i == j) {
-                    arr.push(Object.assign(arrResize[i], value2[j]))
+                const move1 = (ev) => {
+                    that.computeRotate(startPosR, startPointT, ev.changedTouches[0])
                 }
+                const end = () => {
+                    DOM1[0].removeEventListener('touchmove', end)
+                }
+
+                DOM1[0].addEventListener('touchmove', move1)
+                DOM1[0].addEventListener('touchend', end)
             }
-        }
-        return arr
+        }, false)
     },
-    // mouseStartPoint:function(ev){
-    //     if (this._preventMouse) return;
-    //     event.stopPropagation();
-    //     let mouseStartPoint = [event.clientX, event.clientY]
-    //     return mouseStartPoint
-    // },
-    // mouseMovePoint:function(ev){
-    //     if (this._preventMouse) return;
-    //     event.stopPropagation();
-    //     let mouseMovePoint = [event.clientX, event.clientY]
-    //     return mouseMovePoint
-    // }
-    
+
+    computedDrag: function (startPointT, center, ev) {
+        let opt1 = {
+            startPos: {
+                center: center
+            },
+            opts: {
+                startPoint: startPointT,
+                movePoint: [ev.clientX, ev.clientY],
+            },
+        }
+        const result = move(opt1)
+        this._numberValue.center = result.center
+    },
+    computeResize: function (startPos, startPointT, eve, value) {
+        let movePoint = [eve.clientX, eve.clientY]
+        const opt3 = {
+            startPos,
+            opts: {
+                startPoint: startPointT,
+                movePoint: movePoint,
+                mode: md.ratio,
+                marker: value
+            },
+        };
+        const result = resize(opt3) //====>center   size
+
+        Object.assign(this._numberValue, result)
+        this._initSize = result.size //initSize
+    },
+    computeRotate: function (startPos, startPointT, ev) {
+        let movePoint = [ev.clientX, ev.clientY]
+        const opt2 = {
+            startPos,
+            opts: {
+                startPoint: startPointT,
+                movePoint,
+            },
+        };
+        let result = rotate(opt2)
+        this._numberValue.rotate = result.rotate
+        this._commonRotate = result.rotate
+    },
 }
+
+const centerfun = (dom) => {
+    let d = document.getElementsByClassName(dom)[0].style.transform.match(/translate\(.*?(\))/g)[1]
+    let translate = d.match(/\d+(.\d+)?/g)
+    let centerX = parseFloat(translate[0])
+    let centerY = parseFloat(translate[1])
+    let center = [centerX, centerY]
+    return center
+}
+
+let arrResize = [{
+    direction: mk.leftTop,
+}, {
+    direction: mk.rightTop,
+}, {
+    direction: mk.leftBottom,
+}, {
+    direction: mk.rightBottom,
+}]
+
 module.exports = EpubDRR;
 
+
+
+// import EpubDRR from './EpubDRR'
+// import $ from 'jquery'
 
 let arrResizes = [{
     name: '.drr-stick-tl',
@@ -381,6 +344,9 @@ let arrResizes = [{
     name: '.drr-stick-br',
     classNames: 'drr-stick drr-stick-br'
 }]
+// window.addEventListener('mousemove', () => {
+//     console.warn(11111)
+// });
 // * [${图形},${图形的父级元素},图行className,${旋转元素},旋转元素className]
 const test = new EpubDRR('drag')
 test.epubDrag($('.drag'), 'dragPic image')
